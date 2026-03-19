@@ -27,6 +27,20 @@ description: 面向 Codex 的多后端图像与视频生成 skill。用于配置
 - 如果还要叠加 `artist_preset`、`style_preset`、`negative_preset` 等片段，再使用 `prompt_mode: composed`。
 - `novelai_compatible` 的 `nai_compatible` 风格按已知规则映射到 `/v1/chat/completions` 形态，请求里会发送 `messages`、`model`、`negative_prompt`、`size/image_size`、`scale`、`steps`、`sampler` 等字段。
 
+## NovelAI 尺寸选择规则
+
+- 默认尺寸策略是 `normal + 1:1`，也就是 `1024:1024`。
+- 如果用户明确说“生成小图”、“先来小一点”、“测试图”，优先使用 `small`。
+- 如果用户明确说“大图”，优先使用 `large`。
+- 如果用户明确说“超大图”、“超高分辨率”、“高清壁纸”、“桌面壁纸”、“手机壁纸”、“wallpaper”，优先使用 `wallpaper`。
+- 如果用户没有提尺寸级别，就用 `normal`。
+- 长宽比默认按 `1:1` 处理；如果用户明确说“横图”、“横版”、“landscape”，改用横图尺寸；如果用户明确说“竖图”、“竖版”、“portrait”，改用竖图尺寸。
+- `wallpaper` 没有正方形尺寸。如果用户只说“大图”但没说横竖，优先自行判断：
+  - 更像桌面壁纸、场景图、横向构图时，用 `1920:1088`。
+  - 更像手机壁纸、人物立绘、竖向构图时，用 `1088:1920`。
+- 如果用户自己明确给了尺寸或纵横比要求，始终以用户要求为准。
+- 需要具体尺寸表时，读取 [references/novelai-size-policy.md](references/novelai-size-policy.md)。
+
 ## Danbooru / Donmai 可选流程
 
 - 当用户明确提到 `Danbooru`、`Donmai`、`wiki`、`tag` 标准名、别名校对，或你怀疑某些画师名、角色名、版权名、冷门 tag 可能写错时，优先按需读取 [references/danbooru-workflow.md](references/danbooru-workflow.md)。

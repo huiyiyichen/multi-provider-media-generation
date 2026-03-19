@@ -177,6 +177,31 @@ node dist\cli.js config set --provider novelai_compatible --json "{\"api_key\":\
 }
 ```
 
+## NovelAI 尺寸默认规则
+
+现在这套 skill 已经写入了 NAI 尺寸判断流程。默认按下面的规则选：
+
+- 默认：`normal` + `1:1`，也就是 `1024:1024`。
+- 用户说“小图”：用 `small`。
+- 用户说“大图”：用 `large`。
+- 用户说“超大图”、“超高分辨率”或“壁纸”：用 `wallpaper`。
+- 用户没说横竖：默认 `1:1`。
+- 用户说“横图”：切到 landscape。
+- 用户说“竖图”：切到 portrait。
+
+对应尺寸：
+
+- `small`：`640:640` / `768:512` / `512:768`
+- `normal`：`1024:1024` / `1216:832` / `832:1216`
+- `large`：`1472:1472` / `1536:1024` / `1024:1536`
+- `wallpaper`：`1920:1088` / `1088:1920`
+
+说明：
+
+- `wallpaper` 没有正方形尺寸。
+- 如果用户只说“超大图”或“壁纸”但没说横图还是竖图，Codex 需要自己判断更像桌面壁纸还是手机壁纸。
+- 如果用户明确给了尺寸，就直接服从用户要求。
+
 ## 可选：Danbooru / Donmai 查询流程
 
 如果你之后希望 Codex 在新会话里也知道“什么时候该查 Danbooru / Donmai”，现在这套 skill 已经把这部分写进流程了。
@@ -309,3 +334,5 @@ npm test
 - [CLI 用法](./references/cli-usage.md)
 - [JSON 示例](./references/examples.md)
 - [Provider 能力矩阵](./references/provider-capabilities.md)
+- [NovelAI 尺寸规则](./references/novelai-size-policy.md)
+- [Danbooru / Donmai 流程](./references/danbooru-workflow.md)
