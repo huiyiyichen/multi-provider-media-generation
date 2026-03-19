@@ -1,0 +1,5 @@
+﻿node_modules/
+dist/
+coverage/
+data/*
+!data/.gitkeep

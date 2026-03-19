@@ -1,0 +1,26 @@
+﻿{
+  "name": "multi-provider-media-generation",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Codex skill for capability-driven multi-provider image and video generation.",
+  "bin": {
+    "media-skill": "./dist/cli.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && vitest run"
+  },
+  "dependencies": {
+    "fflate": "^0.8.2",
+    "zod": "^3.24.2"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "typescript": "^5.8.2",
+    "vitest": "^3.2.4"
+  }
+}

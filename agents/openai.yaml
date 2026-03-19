@@ -1,0 +1,6 @@
+interface:
+  display_name: "Media Generation"
+  short_description: "Route media generation through strict provider adapters."
+  icon_small: "./assets/media-generation-small.svg"
+  icon_large: "./assets/media-generation.png"
+  default_prompt: "Use $multi-provider-media-generation to configure a provider, inspect capabilities, or run a `media-skill generate` request."
