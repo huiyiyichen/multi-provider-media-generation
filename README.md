@@ -1,92 +1,96 @@
 ﻿# multi-provider-media-generation
 
-一个面向 Codex 的多后端图像 / 视频生成 skill。
+面向 Codex 的多后端图像与视频生成 skill。
 
-它通过统一的 `media-skill` CLI 对外提供能力，内部用显式能力矩阵、字段白名单和 provider adapter 来路由请求，避免把统一输入错误地透传给不同后端。
+项目通过统一的 `media-skill` CLI 提供配置管理、能力解析与生成执行能力，内部采用固定流程处理请求：输入归一化、能力矩阵解析、字段白名单校验、provider 适配、请求发送与结果落盘。该实现用于限制跨 provider 的字段误透传，并为不同接口风格提供受控映射。
 
-它也支持一套“可选的 Donmai / Danbooru tag 校对流程”：
+## 功能
 
-- 普通生图时，可以直接按 NAI / Danbooru 风格整理 tag。
-- 需要校对标准 tag 名、别名、画师名、角色名时，可以再查 Donmai API。
-- 需要看 tag 含义、歧义说明时，再看 Donmai wiki。
+- 统一命令入口：`media-skill`
+- 支持 `NovelAI`、`nanobanana`、`grok`
+- 兼容格式：`oai_images`、`nai_compatible`、`wrapped`
+- 支持 provider 配置管理、能力查询与统一生成入口
+- 支持为 `NovelAI` 持久化保存常用正面提示词与负面提示词
+- 支持 `nanobanana` 的 `txt2img`、`img2img`
+- 支持 `grok` 的生图、改图与图生视频
+- 支持可选的 `Donmai / Danbooru` tag 标准化校对流程
+- 运行期数据统一保存在 `data/`，默认不提交到 Git
 
-## 支持范围
-
-| provider | model / style | txt2img | img2img | img2video |
-| --- | --- | --- | --- | --- |
-| `novelai_official` | `official` | Yes | No | No |
-| `novelai_compatible` | `oai_images` | Yes | No | No |
-| `novelai_compatible` | `nai_compatible` | Yes | No | No |
-| `novelai_compatible` | `wrapped` | Yes | No | No |
-| `nanobanana` | 配置内允许的模型 | Yes | Yes | No |
-| `grok_imagine` | `grok-imagine-1.0` | Yes | No | No |
-| `grok_imagine` | `grok-imagine-1.0-edit` | No | Yes | No |
-| `grok_imagine` | `grok-imagine-1.0-video` | No | No | Yes |
-
-## 快速开始
-
-先安装依赖并编译：
+## 安装
 
 ```bash
 npm install
 npm run build
 ```
 
-如果你在 Windows PowerShell 下遇到执行策略限制，可以改用：
+Windows PowerShell：
 
 ```powershell
 npm.cmd install
 npm.cmd run build
 ```
 
-本项目设计的统一命令名是 `media-skill`。
+## 命令入口
 
-在本地仓库里，如果你还没有把它安装成全局命令，就直接把：
+对外统一命令名为 `media-skill`。
 
-```bash
-media-skill ...
-```
-
-理解成：
+未进行全局安装时，请使用本地 CLI：
 
 ```powershell
-node dist\cli.js ...
+node dist\cli.js <command>
 ```
 
-## 配置 provider
+示例：
 
-最简单的方式是交互式配置：
+```powershell
+node dist\cli.js config list
+node dist\cli.js generate --file input.json
+```
+
+## 支持范围
+
+- 支持 `NovelAI`、`nanobanana`、`grok`
+- 兼容格式：`oai_images`、`nai_compatible`、`wrapped`、`openai chat completions`
+
+## Provider 配置
+
+交互式配置命令：
 
 ```powershell
 node dist\cli.js config set
 ```
 
-程序会依次让你输入：
+配置项：
 
 - `provider`
 - `url`
 - `apikey`
 - `model`
 
-说明：
+配置规则：
 
-- `provider` 可以输入编号，也可以输入完整名称。
-- `model` 支持一次输入多个值，多个模型用英文逗号分隔。
-- 第一个模型会保存为 `default_model`。
-- 整组模型会保存为 `allowed_models`。
-- 交互模式下 `auth_strategy` 固定默认 `bearer`。
-- 交互模式下 `timeout_ms` 固定默认 `300000`，也就是 `300s`。
+- `provider` 支持编号或完整名称
+- `model` 支持多个值，多个模型以英文逗号分隔
+- 第一个模型保存为 `default_model`
+- 所有模型保存到 `allowed_models`
+- `auth_strategy` 默认值为 `bearer`
+- `timeout_ms` 默认值为 `300000`
 
-同一个 skill 会分别保存每个 provider 的配置：
+各 provider 的配置相互独立，更新单个 provider 不会覆盖其他 provider 的已保存配置。
 
-- 再次执行 `config set --provider nanobanana`，只会覆盖 `nanobanana` 的配置。
-- 不会影响 `grok_imagine`、`novelai_official`、`novelai_compatible` 已保存的配置。
+常用命令：
 
-## 保存 NovelAI 常用档案
+```powershell
+node dist\cli.js config get --provider nanobanana
+node dist\cli.js config list
+node dist\cli.js config validate --provider novelai_compatible
+```
 
-如果你想把常用的画师串和负面提示词长期保存下来，用 `profile`。
+## NovelAI Profile
 
-例如把你常用的一套保存成默认档案：
+`profile` 用于持久化保存常用正面提示词与负面提示词。
+
+创建或更新 profile：
 
 ```powershell
 node dist\cli.js profile upsert --name anime-default --positive "artist:alpha, artist:beta, masterpiece, best quality" --negative "lowres, blurry, bad anatomy" --default
@@ -104,49 +108,13 @@ node dist\cli.js profile enable --name anime-default
 
 说明：
 
-- `positive` 里适合放你常用的画师串、质量串、风格串。
-- `negative` 里适合放你长期复用的 NAI 负面词。
-- 生成时如果不显式写 `profile_name`，就会自动使用默认 profile。
+- `positive` 适用于画师串、质量串、风格串
+- `negative` 适用于长期复用的 NovelAI 负面提示词
+- 未显式提供 `profile_name` 时，默认使用当前默认 profile
 
-## 如何选择不同模型
+## NovelAI 生成规则
 
-如果某个 provider 配置里有多个 `allowed_models`，生成时就在输入 JSON 里显式传 `model`。
-
-例如 `nanobanana` 同时配置了：
-
-```json
-[
-  "gemini-3-pro-image-preview",
-  "gemini-3.1-flash-image-preview"
-]
-```
-
-那么生成时可以这样指定：
-
-```json
-{
-  "provider": "nanobanana",
-  "operation": "txt2img",
-  "model": "gemini-3.1-flash-image-preview",
-  "prompt": "一个未来感物流仓库，电影感，写实风格"
-}
-```
-
-## NovelAI 推荐工作流
-
-如果你是要给 Codex 用，建议这样理解：
-
-1. 先把常用画师串和负面词存成默认 profile。
-2. 以后你只要说“按我平时那套 NAI 风格生图”，Codex 就应该先把你的自然语言要求整理成标签串。
-3. 然后调用这个 skill，把标签放进 `prompt`，让默认 profile 自动补上保存的正面串和负面词。
-
-一个 `novelai_compatible + nai_compatible` 的示例：
-
-```powershell
-node dist\cli.js config set --provider novelai_compatible --json "{\"api_key\":\"YOUR_KEY\",\"base_url\":\"https://example.com\",\"auth_strategy\":\"bearer\",\"request_style\":\"nai_compatible\",\"style_templates\":{\"nai_compatible\":{\"endpoint\":\"/v1/chat/completions\",\"supports_size\":true,\"supports_width_height\":true}}}"
-```
-
-然后生成：
+推荐输入：
 
 ```json
 {
@@ -163,13 +131,13 @@ node dist\cli.js config set --provider novelai_compatible --json "{\"api_key\":\
 }
 ```
 
-这时 skill 会自动把默认 profile 的：
+处理规则：
 
-- 正面画师串追加到 `prompt`
-- 负面词追加到 `negative_prompt`
-- 并把请求映射成 `/v1/chat/completions` 兼容形态
+- 默认 profile 的正面提示词会追加到 `prompt`
+- 默认 profile 的负面提示词会追加到 `negative_prompt`
+- `nai_compatible` 风格映射到 `/v1/chat/completions`
 
-如果你想显式换另一套档案，可以加：
+显式指定 profile：
 
 ```json
 {
@@ -177,43 +145,97 @@ node dist\cli.js config set --provider novelai_compatible --json "{\"api_key\":\
 }
 ```
 
-## NovelAI 尺寸默认规则
+## NovelAI 尺寸策略
 
-现在这套 skill 已经写入了 NAI 尺寸判断流程。默认按下面的规则选：
+默认尺寸策略为 `normal + 1:1`，对应 `1024:1024`。
 
-- 默认：`normal` + `1:1`，也就是 `1024:1024`。
-- 用户说“小图”：用 `small`。
-- 用户说“大图”：用 `large`。
-- 用户说“超大图”、“超高分辨率”或“壁纸”：用 `wallpaper`。
-- 用户没说横竖：默认 `1:1`。
-- 用户说“横图”：切到 landscape。
-- 用户说“竖图”：切到 portrait。
+尺寸级别映射：
 
-对应尺寸：
+- 小图：`small`
+- 大图：`large`
+- 超大图、超高分辨率、壁纸：`wallpaper`
+- 未指定尺寸级别：`normal`
+
+长宽比映射：
+
+- 未指定横竖方向：`1:1`
+- 横图：landscape
+- 竖图：portrait
+
+尺寸表：
 
 - `small`：`640:640` / `768:512` / `512:768`
 - `normal`：`1024:1024` / `1216:832` / `832:1216`
 - `large`：`1472:1472` / `1536:1024` / `1024:1536`
 - `wallpaper`：`1920:1088` / `1088:1920`
 
-说明：
+补充说明：
 
-- `wallpaper` 没有正方形尺寸。
-- 如果用户只说“超大图”或“壁纸”但没说横图还是竖图，Codex 需要自己判断更像桌面壁纸还是手机壁纸。
-- 如果用户明确给了尺寸，就直接服从用户要求。
+- `wallpaper` 不提供正方形尺寸
+- 当请求仅指定“超大图”或“壁纸”但未指定横竖方向时，需要结合场景选择横版或竖版尺寸
+- 用户已明确给出尺寸时，以用户输入为准
 
-## 可选：Danbooru / Donmai 查询流程
+## 模型选择
 
-如果你之后希望 Codex 在新会话里也知道“什么时候该查 Danbooru / Donmai”，现在这套 skill 已经把这部分写进流程了。
+当某个 provider 配置了多个 `allowed_models` 时，生成请求必须显式提供 `model`。
 
-建议理解成：
+示例：
 
-- 普通常见词：
-  直接按经验整理成 Danbooru / NAI 风格 tag。
-- 冷门词、角色名、画师名、版权名、别名校对：
-  优先查 Donmai API。
-- 需要解释 tag 含义或区别：
-  再看 Donmai wiki。
+```json
+{
+  "provider": "nanobanana",
+  "operation": "txt2img",
+  "model": "gemini-3.1-flash-image-preview",
+  "prompt": "一个未来感物流仓库，电影感，写实风格"
+}
+```
+
+## nanobanana 图生图
+
+`nanobanana` 支持以剪贴板图片作为 `img2img` 输入。
+
+```json
+{
+  "provider": "nanobanana",
+  "operation": "img2img",
+  "model": "gemini-3.1-flash-image-preview",
+  "prompt": "改成夜景霓虹风格",
+  "source_image": {
+    "type": "clipboard",
+    "value": "current"
+  }
+}
+```
+
+执行命令：
+
+```powershell
+node dist\cli.js generate --file input.json
+```
+
+## 生成示例
+
+`nanobanana` 文生图：
+
+```powershell
+node dist\cli.js generate --json "{\"provider\":\"nanobanana\",\"operation\":\"txt2img\",\"model\":\"gemini-3-pro-image-preview\",\"prompt\":\"一个未来感物流仓库，电影感，写实风格\"}"
+```
+
+`NovelAI official` 的 `composed` 模式：
+
+```powershell
+node dist\cli.js generate --json "{\"provider\":\"novelai_official\",\"operation\":\"txt2img\",\"prompt_mode\":\"composed\",\"content_prompt\":\"1girl, thick eyebrows, messy hair\",\"artist_preset\":\"painterly\",\"style_preset\":\"cinematic\",\"negative_preset\":\"safe-negative\",\"extra_positive\":\"ethereal glow\"}"
+```
+
+`grok` 图生视频：
+
+```powershell
+node dist\cli.js generate --json "{\"provider\":\"grok_imagine\",\"operation\":\"img2video\",\"model\":\"grok-imagine-1.0-video\",\"prompt\":\"animate this image\",\"source_image\":{\"type\":\"base64\",\"value\":\"aGVsbG8=\"}}"
+```
+
+## Donmai / Danbooru 流程
+
+项目支持可选的 `Donmai / Danbooru` tag 标准化流程，适用于角色名、画师名、版权名、别名及冷门 tag 的校对。
 
 本地可选配置文件：
 
@@ -231,100 +253,39 @@ node dist\cli.js config set --provider novelai_compatible --json "{\"api_key\":\
 }
 ```
 
-说明：
+## 输出目录
 
-- 这个文件放在 `data/` 下，本仓库的 `.gitignore` 会忽略它，不会跟代码一起上传。
-- 如果文件存在，我后面就默认可以按这份配置决定优先走 API 还是只按经验出词。
-- 如果文件不存在，我就只按已有知识整理 Danbooru / NAI 风格 tag，不会假装自己查过站内数据。
+生成结果统一写入 `data/runs/<yyyy-mm-dd>/`。
 
+目录内容包括：
 
-## 图生图：直接用粘贴图片
+- 图片或视频文件
+- 可选的原始响应文件（启用 `save_raw_response: true` 时）
 
-`nanobanana` 已支持把当前系统剪贴板里的图片直接作为 `img2img` 输入。
-
-在 Windows 下，如果你刚刚复制了图片，或者把图片粘贴到 Codex 对话框时系统剪贴板里仍然是这张图，就可以用下面的 JSON：
-
-```json
-{
-  "provider": "nanobanana",
-  "operation": "img2img",
-  "model": "gemini-3.1-flash-image-preview",
-  "prompt": "改成夜景霓虹风格",
-  "source_image": {
-    "type": "clipboard",
-    "value": "current"
-  }
-}
-```
-
-保存成 `input.json` 后执行：
-
-```powershell
-node dist\cli.js generate --file input.json
-```
-
-## 其他生成示例
-
-`nanobanana` 文生图：
-
-```powershell
-node dist\cli.js generate --json "{\"provider\":\"nanobanana\",\"operation\":\"txt2img\",\"model\":\"gemini-3-pro-image-preview\",\"prompt\":\"一个未来感物流仓库，电影感，写实风格\"}"
-```
-
-NovelAI official，composed 模式：
-
-```powershell
-node dist\cli.js generate --json "{\"provider\":\"novelai_official\",\"operation\":\"txt2img\",\"prompt_mode\":\"composed\",\"content_prompt\":\"1girl, thick eyebrows, messy hair\",\"artist_preset\":\"painterly\",\"style_preset\":\"cinematic\",\"negative_preset\":\"safe-negative\",\"extra_positive\":\"ethereal glow\"}"
-```
-
-Grok 图生视频：
-
-```powershell
-node dist\cli.js generate --json "{\"provider\":\"grok_imagine\",\"operation\":\"img2video\",\"model\":\"grok-imagine-1.0-video\",\"prompt\":\"animate this image\",\"source_image\":{\"type\":\"base64\",\"value\":\"aGVsbG8=\"}}"
-```
-
-## 输出结果
-
-每次成功执行后，结果会直接保存到：
-
-`data/runs/<yyyy-mm-dd>/`
-
-这个目录里通常包含：
-
-- 生成出的图片或视频文件
-- 如果输入里设置了 `save_raw_response: true`，还会额外保存原始响应文件
-
-现在不会再给每张图片单独建立文件夹，也不会再额外生成每张图的 `metadata.json`。
+当前实现不会为单个资产创建额外子目录，也不会为每张图片单独生成 `metadata.json`。
 
 ## 常见错误
 
 `UNSUPPORTED_OPERATION`
 
-表示目标 provider 或 model 不支持当前操作类型。
+目标 provider 或 model 不支持当前操作。
 
 `UNSUPPORTED_FIELD`
 
-表示你传入了目标 provider 不允许的字段，比如给 `nanobanana` 传 `negative_prompt`。
+输入中包含目标 provider 不允许的字段，例如向 `nanobanana` 传入 `negative_prompt`。
 
 `SOURCE_IMAGE_REQUIRED`
 
-表示当前操作必须提供源图，比如 `nanobanana` 的 `img2img`、`grok-imagine-1.0-edit`、`grok-imagine-1.0-video`。
+当前操作必须提供源图，例如 `nanobanana` 的 `img2img`、`grok-imagine-1.0-edit`、`grok-imagine-1.0-video`。
 
 `CLIPBOARD_IMAGE_UNAVAILABLE`
 
-表示当前系统剪贴板里没有可读取的图片，或者当前环境无法访问系统剪贴板。
+当前环境无法从系统剪贴板读取图片。
 
 ## 开发与测试
 
-编译：
-
 ```bash
 npm run build
-```
-
-运行测试：
-
-```bash
 npm test
 ```
 
