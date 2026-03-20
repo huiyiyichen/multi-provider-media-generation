@@ -1,4 +1,4 @@
-﻿export const PROVIDERS = [
+export const PROVIDERS = [
   "novelai_official",
   "novelai_compatible",
   "nanobanana",
@@ -198,6 +198,7 @@ export type ParsedAdapterResponse = {
 export type SavedAsset = {
   kind: AssetKind;
   path: string;
+  display_path: string;
   filename: string;
   source_type: AssetSourceType;
   mime_type?: string;
@@ -211,6 +212,7 @@ export type GenerateAssetResult = {
   request_style?: RequestStyle;
   model?: string;
   output_dir: string;
+  display_output_dir: string;
   metadata_path?: string;
   raw_response_path?: string;
   assets: SavedAsset[];
@@ -255,3 +257,5 @@ export type CliContext = {
   root_dir: string;
   data_dir: string;
 };
+
+

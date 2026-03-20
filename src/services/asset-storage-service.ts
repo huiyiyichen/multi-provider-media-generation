@@ -1,5 +1,6 @@
-﻿import { access, writeFile } from "node:fs/promises";
-import { basename, join } from "node:path";
+import { access, writeFile } from "node:fs/promises";
+import { homedir } from "node:os";
+import { basename, dirname, join, resolve } from "node:path";
 import { unzipSync } from "fflate";
 import { MediaSkillError } from "../errors";
 import type {
@@ -12,16 +13,28 @@ import type {
 import { dataUrlToBase64, dateStamp, fileNameFromUrl, inferExtension } from "../utils/common";
 import { ensureDir, writeJsonFile } from "../utils/fs";
 
+const SKILL_NAME = "multi-provider-media-generation";
+const NON_ASCII_PATTERN = /[^\u0000-\u007F]/;
+
 export class AssetStorageService {
-  constructor(private readonly dataDir: string) {}
+  private readonly displayDataDir?: string;
+
+  constructor(private readonly dataDir: string) {
+    this.displayDataDir = this.resolveDisplayDataDir();
+  }
 
   async saveRun(request: ResolvedRequest, parsed: ParsedAdapterResponse): Promise<GenerateAssetResult> {
-    const outputDir = join(this.dataDir, "runs", dateStamp());
+    const stamp = dateStamp();
+    const outputDir = join(this.dataDir, "runs", stamp);
+    const displayOutputDir = join(this.displayDataDir ?? this.dataDir, "runs", stamp);
     await ensureDir(outputDir);
+    if (displayOutputDir !== outputDir) {
+      await ensureDir(displayOutputDir);
+    }
 
     const assets: SavedAsset[] = [];
     for (const [index, asset] of parsed.assets.entries()) {
-      const saved = await this.saveAsset(outputDir, request.request_id, index + 1, asset);
+      const saved = await this.saveAsset(outputDir, displayOutputDir, request.request_id, index + 1, asset);
       assets.push(...saved);
     }
 
@@ -37,6 +50,7 @@ export class AssetStorageService {
       request_style: request.request_style,
       model: request.model,
       output_dir: outputDir,
+      display_output_dir: displayOutputDir,
       raw_response_path: rawResponsePath,
       assets,
     };
@@ -56,6 +70,7 @@ export class AssetStorageService {
 
   private async saveAsset(
     outputDir: string,
+    displayOutputDir: string,
     requestId: string,
     index: number,
     asset: ParsedAssetSource,
@@ -74,11 +89,21 @@ export class AssetStorageService {
         const mimeType = asset.mime_type ?? response.headers.get("content-type") ?? undefined;
         const filename = asset.filename ?? fileNameFromUrl(String(asset.value));
         if (mimeType === "application/zip" || filename?.endsWith(".zip")) {
-          return this.saveZipBytes(outputDir, requestId, index, bytes);
+          return this.saveZipBytes(outputDir, displayOutputDir, requestId, index, bytes);
         }
 
         return [
-          await this.writeBinaryAsset(outputDir, requestId, index, asset.kind, bytes, filename, mimeType, "url"),
+          await this.writeBinaryAsset(
+            outputDir,
+            displayOutputDir,
+            requestId,
+            index,
+            asset.kind,
+            bytes,
+            filename,
+            mimeType,
+            "url",
+          ),
         ];
       }
       case "base64": {
@@ -87,17 +112,28 @@ export class AssetStorageService {
         const mimeType = decoded?.mimeType ?? asset.mime_type;
         const bytes = new Uint8Array(Buffer.from(base64Payload, "base64"));
         if (mimeType === "application/zip" || asset.filename?.endsWith(".zip")) {
-          return this.saveZipBytes(outputDir, requestId, index, bytes);
+          return this.saveZipBytes(outputDir, displayOutputDir, requestId, index, bytes);
         }
 
         return [
-          await this.writeBinaryAsset(outputDir, requestId, index, asset.kind, bytes, asset.filename, mimeType, "base64"),
+          await this.writeBinaryAsset(
+            outputDir,
+            displayOutputDir,
+            requestId,
+            index,
+            asset.kind,
+            bytes,
+            asset.filename,
+            mimeType,
+            "base64",
+          ),
         ];
       }
       case "binary":
         return [
           await this.writeBinaryAsset(
             outputDir,
+            displayOutputDir,
             requestId,
             index,
             asset.kind,
@@ -108,7 +144,7 @@ export class AssetStorageService {
           ),
         ];
       case "zip":
-        return this.saveZipBytes(outputDir, requestId, index, asset.value as Uint8Array);
+        return this.saveZipBytes(outputDir, displayOutputDir, requestId, index, asset.value as Uint8Array);
       default:
         throw new MediaSkillError("UNSUPPORTED_ASSET_SOURCE", `Unsupported asset source type: ${asset.data_type}.`);
     }
@@ -116,6 +152,7 @@ export class AssetStorageService {
 
   private async saveZipBytes(
     outputDir: string,
+    displayOutputDir: string,
     requestId: string,
     index: number,
     bytes: Uint8Array,
@@ -129,6 +166,7 @@ export class AssetStorageService {
       assets.push(
         await this.writeBinaryAsset(
           outputDir,
+          displayOutputDir,
           requestId,
           Number(`${index}${String(entryIndex).padStart(2, "0")}`),
           this.kindFromFilename(filename),
@@ -145,6 +183,7 @@ export class AssetStorageService {
 
   private async writeBinaryAsset(
     outputDir: string,
+    displayOutputDir: string,
     requestId: string,
     index: number,
     kind: SavedAsset["kind"],
@@ -159,14 +198,53 @@ export class AssetStorageService {
     await ensureDir(outputDir);
     await writeFile(targetPath, bytes);
 
+    const displayPath = await this.writeDisplayAsset(displayOutputDir, targetPath, extension, bytes);
+
     return {
       kind,
       path: targetPath,
+      display_path: displayPath,
       filename: basename(targetPath),
       source_type: sourceType,
       mime_type: mimeType,
       size_bytes: bytes.byteLength,
     };
+  }
+
+  private async writeDisplayAsset(displayOutputDir: string, targetPath: string, extension: string, bytes: Uint8Array) {
+    if (resolve(displayOutputDir) === resolve(dirname(targetPath))) {
+      return targetPath;
+    }
+
+    await ensureDir(displayOutputDir);
+    const displayBaseName = basename(targetPath).replace(/\.[^.]+$/, "");
+    const displayPath = await this.createUniquePath(displayOutputDir, displayBaseName, extension);
+    await writeFile(displayPath, bytes);
+    return displayPath;
+  }
+
+  private resolveDisplayDataDir() {
+    const explicit = process.env.MEDIA_SKILL_DISPLAY_DATA_DIR?.trim();
+    if (explicit) {
+      return resolve(explicit);
+    }
+
+    const normalizedDataDir = resolve(this.dataDir);
+    if (!NON_ASCII_PATTERN.test(normalizedDataDir) && process.env.MEDIA_SKILL_FORCE_DISPLAY_MIRROR !== "1") {
+      return undefined;
+    }
+
+    const codexHome = process.env.CODEX_HOME?.trim();
+    if (codexHome) {
+      return resolve(codexHome, "skills", SKILL_NAME, "data");
+    }
+
+    const userHome = process.env.USERPROFILE?.trim() || process.env.HOME?.trim() || homedir();
+    if (!userHome) {
+      return undefined;
+    }
+
+    return resolve(userHome, ".codex", "skills", SKILL_NAME, "data");
   }
 
   private async createUniquePath(outputDir: string, baseName: string, extension: string) {
@@ -194,3 +272,4 @@ export class AssetStorageService {
     return "image";
   }
 }
+

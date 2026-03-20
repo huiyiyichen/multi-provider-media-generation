@@ -72,6 +72,14 @@ description: 面向 Codex 的多后端图像与视频生成 skill。用于配置
 - `clipboard` 会读取当前系统剪贴板中的图片；如果是自动化测试或非 Windows 环境，可用环境变量 `MEDIA_SKILL_CLIPBOARD_IMAGE_DATA_URL` 注入 data URL。
 - 输出文件直接保存到 `data/runs/YYYY-MM-DD/`，不再为每张图片单独建文件夹，也不再额外生成每张图的 `metadata.json`。
 
+## 结果展示
+
+- 生成成功后，必须同时返回落盘目录和每个资产的绝对路径。优先使用 `display_output_dir` 与每个 asset 的 `display_path`；只有在它们不存在时才退回 `output_dir` 与 `path`。
+- 如果结果是图片，并且当前运行环境支持 Markdown 图片渲染，优先直接用绝对路径内嵌图片，不要只给文件路径列表。
+- 在 Codex 桌面环境中，应使用 `![说明文字](绝对路径)` 的形式展示本地图片。
+- 如果同一轮生成了多张图片，先给出简短的角色或主题说明，再逐张展示图片。
+- 只有在图片无法渲染或用户明确只要路径时，才退化为仅返回文件路径。
+
 ## 参考文档
 
 - 先看 [README.md](README.md) 获取完整中文使用说明。
@@ -79,3 +87,5 @@ description: 面向 Codex 的多后端图像与视频生成 skill。用于配置
 - 需要 JSON 输入示例时看 [references/examples.md](references/examples.md)。
 - 需要能力矩阵时看 [references/provider-capabilities.md](references/provider-capabilities.md)。
 - 需要按需校对 Danbooru / Donmai tag 时看 [references/danbooru-workflow.md](references/danbooru-workflow.md)。
+
+

@@ -1,4 +1,4 @@
-﻿# multi-provider-media-generation
+# multi-provider-media-generation
 
 面向 Codex 的多后端图像与视频生成 skill。
 
@@ -8,13 +8,12 @@
 
 - 统一命令入口：`media-skill`
 - 支持 `NovelAI`、`nanobanana`、`grok`
-- 兼容格式：`oai_images`、`nai_compatible`、`wrapped`
+- 兼容格式：`oai_images`、`nai_compatible`、`wrapped`、`openai chat completions`
 - 支持 provider 配置管理、能力查询与统一生成入口
 - 支持为 `NovelAI` 持久化保存常用正面提示词与负面提示词
 - 支持 `nanobanana` 的 `txt2img`、`img2img`
 - 支持 `grok` 的生图、改图与图生视频
 - 支持可选的 `Donmai / Danbooru` tag 标准化校对流程
-- 运行期数据统一保存在 `data/`，默认不提交到 Git
 
 ## 安装
 
@@ -30,6 +29,33 @@ npm.cmd install
 npm.cmd run build
 ```
 
+## 安装到 Codex
+
+项目提供 `scripts/install-codex-skill.ps1` 用于将当前仓库同步到 Codex 的 skill 目录。
+
+执行前请先完成构建：
+
+```powershell
+npm.cmd run build
+```
+
+安装命令：
+
+```powershell
+pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-codex-skill.ps1
+```
+
+脚本默认安装到以下目录：
+
+- 设置了 `CODEX_HOME` 时：`$CODEX_HOME/skills/multi-provider-media-generation`
+- 未设置 `CODEX_HOME` 时：`%USERPROFILE%\.codex\skills\multi-provider-media-generation`
+
+安装脚本会执行以下校验：
+
+- 以 UTF-8 无 BOM 写入 `SKILL.md`、`README.md`、`agents/openai.yaml`
+- 校验安装后的 `SKILL.md` 文件头必须以 `---` 开始
+- 校验安装后的 `agents/openai.yaml` 必须包含 `interface:` 顶层块
+- 同步 `assets/`、`dist/`、`references/`、`scripts/` 等运行所需目录
 ## 命令入口
 
 对外统一命令名为 `media-skill`。
