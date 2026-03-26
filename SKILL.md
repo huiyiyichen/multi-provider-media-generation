@@ -22,7 +22,7 @@ description: 面向 Codex 的多后端图像与视频生成 skill。用于配置
 ## NovelAI 规则
 
 - 如果用户要你“按我平时那套 NAI 负面词和画师串来”，优先使用默认 profile；如果有多个 profile，先 `media-skill profile list` 再选最合适的一个。
-- 为 NovelAI 生成提示词时，先把用户自然语言需求改写成简洁的标签串，再调用 `generate`。优先写主体、外观、服装、场景、光影、镜头等标签，不要直接把整段自然语言原样发给 NAI。
+- 为 NovelAI 生成提示词时，先把用户自然语言需求改写成简洁的标签串，再调用 `generate`。优先按 `镜头 -> 特写 -> 效果 -> 角色 -> 服装 -> 动作 -> 环境 -> 光影 -> 质量词` 的顺序组织；没有对应信息时可以跳过该段，但不要直接把整段自然语言原样发给 NAI。
 - 如果只是复用已保存的 profile，优先使用 `prompt_mode: raw`，把你整理好的标签放进 `prompt`。profile 会自动补上保存的正面画师串和负面词。
 - 如果还要叠加 `artist_preset`、`style_preset`、`negative_preset` 等片段，再使用 `prompt_mode: composed`。
 - `novelai_compatible` 的 `nai_compatible` 风格按已知规则映射到 `/v1/chat/completions` 形态，请求里会发送 `messages`、`model`、`negative_prompt`、`size/image_size`、`scale`、`steps`、`sampler` 等字段。
@@ -54,6 +54,7 @@ description: 面向 Codex 的多后端图像与视频生成 skill。用于配置
 
 - 如果同一个 provider 配置了多个模型，生成输入里要显式传 `model`，且只能从该 provider 的 `allowed_models` 中选择。
 - `nanobanana` 走最小输入的 `chat/completions` 适配器，不接受 `negative_prompt`、`width`、`height`、`steps`、`cfg_scale`、`seed` 等被矩阵禁止的字段。
+- 批量生成时，请求 JSON、结果 JSON、manifest、批量脚本日志都属于临时工件。默认只保留最终图片与需要展示的 `display_path`，生成完成后立即删除这类中间文件；只有用户明确要求保留排查材料时才允许留下。
 - 当用户在 Windows 上直接复制或粘贴图片，并希望对 `nanobanana` 做 `img2img` 时，优先使用下面这种输入：
 
 ```json

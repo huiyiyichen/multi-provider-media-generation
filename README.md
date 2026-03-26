@@ -66,6 +66,13 @@ pwsh -NoProfile -ExecutionPolicy Bypass -File .\scripts\install-codex-skill.ps1
 node dist\cli.js <command>
 ```
 
+如果你是在 Codex 的 Windows 内置命令环境里运行，并遇到 `node` 无法识别，或 `Assertion failed: ncrypto::CSPRNG(nullptr, 0)`，请改用仓库自带包装脚本：
+
+```powershell
+pwsh -NoProfile -File .\scripts\media-skill.ps1 config list
+pwsh -NoProfile -File .\scripts\media-skill.ps1 generate --file input.json
+```
+
 示例：
 
 ```powershell
